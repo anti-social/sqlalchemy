@@ -3147,6 +3147,13 @@ class Bundle(operators.ColumnOperators):
         cloned.__dict__.update(self.__dict__)
         return cloned
 
+    def __clause_element__(self):
+        return expression.ClauseList(group=False, *self.c)
+
+    @property
+    def clauses(self):
+        return self.__clause_element__().clauses
+
     def label(self, name):
         """Provide a copy of this :class:`.Bundle` passing a new label."""
 
@@ -3228,6 +3235,9 @@ class _ColumnEntity(_QueryEntity):
 
             if c is not column:
                 return
+        elif isinstance(column, Bundle):
+            _BundleEntity(query, column)
+            return
 
         if not isinstance(column, sql.ColumnElement):
             raise sa_exc.InvalidRequestError(

@@ -401,28 +401,16 @@ class CompositeProperty(DescriptorProperty):
 
         """
 
-        def __clause_element__(self):
-            return expression.ClauseList(group=False, *self._comparable_elements)
 
         __hash__ = None
 
         @property
-        def bundle(self):
-            """Return a :class:`.Bundle` which will query the columns from
-            the composite property all at once, returning the composite object
-            from a column-oriented :class:`.Query`.
+        def clauses(self):
+            return expression.ClauseList(group=False, *self._comparable_elements)
 
-            e.g. if a mapped class has a composite attribute ``point`` linked
-            to the ``Point`` class, it can be queried like this::
-
-            point = MyClass.point.bundle
-            for point in session.query(point).filter(point.c.x == 10).filter(point.c.y == 20):
-                print(point)  # recieves Point objects
-
-            .. versionadded:: 0.9.0
-
-            """
-            return CompositeProperty.CompositeBundle(self.prop, self.__clause_element__())
+        def __clause_element__(self):
+            expr = self.clauses
+            return CompositeProperty.CompositeBundle(self.prop, expr)
 
         @util.memoized_property
         def _comparable_elements(self):

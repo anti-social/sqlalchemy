@@ -214,23 +214,23 @@ class PointTest(fixtures.MappedTest):
             ((), [Point(x=None, y=None)], ())
         )
 
-    def test_query_cols(self):
+    def test_query_cols_legacy(self):
         Edge = self.classes.Edge
 
         sess = self._fixture()
 
         eq_(
-            sess.query(Edge.start, Edge.end).all(),
+            sess.query(Edge.start.clauses, Edge.end.clauses).all(),
             [(3, 4, 5, 6), (14, 5, 2, 7)]
         )
 
-    def test_query_cols_bundle(self):
+    def test_query_cols(self):
         Edge = self.classes.Edge
         Point = self.classes.Point
 
         sess = self._fixture()
 
-        start, end = Edge.start.bundle, Edge.end.bundle
+        start, end = Edge.start, Edge.end
 
         eq_(
             sess.query(start, end).filter(start == Point(3, 4)).all(),
@@ -238,6 +238,7 @@ class PointTest(fixtures.MappedTest):
         )
 
     def test_delete(self):
+        Point = self.classes.Point
         Graph, Edge = self.classes.Graph, self.classes.Edge
 
         sess = self._fixture()
@@ -248,7 +249,10 @@ class PointTest(fixtures.MappedTest):
         sess.flush()
         eq_(
             sess.query(Edge.start, Edge.end).all(),
-            [(3, 4, 5, 6), (14, 5, None, None)]
+            [
+                (Point(x=3, y=4), Point(x=5, y=6)),
+                (Point(x=14, y=5), Point(x=None, y=None))
+            ]
         )
 
     def test_save_null(self):
