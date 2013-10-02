@@ -35,6 +35,8 @@ from ..sql import (
         util as sql_util,
         expression, visitors
     )
+from ..sql.base import ColumnCollection
+from ..sql import operators
 from . import properties
 
 __all__ = ['Query', 'QueryContext', 'aliased']
@@ -2890,6 +2892,8 @@ class _QueryEntity(object):
             if not isinstance(entity, util.string_types) and \
                         _is_mapped_class(entity):
                 cls = _MapperEntity
+            elif isinstance(entity, Bundle):
+                cls = _BundleEntity
             else:
                 cls = _ColumnEntity
         return object.__new__(cls)
@@ -3089,6 +3093,112 @@ class _MapperEntity(_QueryEntity):
     def __str__(self):
         return str(self.mapper)
 
+@inspection._self_inspects
+class Bundle(operators.ColumnOperators):
+    """A grouping of SQL expressions that are returned by a :class:`.Query`
+    under one namespace.
+
+    The :class:`.Bundle` essentially allows nesting of the tuple-based
+    results returned by a column-oriented :class:`.Query` object.  It also
+    is extensible via simple subclassing, where the primary capability
+    to override is that of how the set of expressions should be returned,
+    allowing post-processing as well as custom return types, without
+    involving ORM identity-mapped classes.
+
+    .. versionadded:: 0.9.0
+
+    .. seealso::
+
+        :attr:`.CompositeProperty.Comparator.bundle`
+
+    """
+
+    def __init__(self, name, *exprs):
+        """Construct a new :class:`.Bundle`.
+
+        e.g.::
+
+            bn = Bundle("mybundle", MyClass.x, MyClass.y)
+
+            for row in session.query(bn).filter(bn.c.x == 5).filter(bn.c.y == 4):
+                print(row.mybundle.x, row.mybundle.y)
+
+        """
+        self.name = self._label = name
+        self.exprs = exprs
+        self.c = self.columns = ColumnCollection()
+        self.columns.update((getattr(col, "key", col._label), col)
+                    for col in exprs)
+        self.comparator = self.__class__.Comparator(self)
+
+    class Comparator(interfaces.PropComparator):
+        def __init__(self, bundle):
+            self.bundle = bundle
+
+
+    def operate(self, op, *other, **kwargs):
+        return op(self.comparator, *other, **kwargs)
+
+    def reverse_operate(self, op, other, **kwargs):
+        return op(other, self.comparator, **kwargs)
+
+    def _clone(self):
+        cloned = self.__class__.__new__(self.__class__)
+        cloned.__dict__.update(self.__dict__)
+        return cloned
+
+    def label(self, name):
+        """Provide a copy of this :class:`.Bundle` passing a new label."""
+
+        cloned = self._clone()
+        cloned.name = name
+        return cloned
+
+    def create_row_processor(self, query, procs, labels):
+        """Produce the "row processing" function for this :class:`.Bundle`.
+
+        May be overridden by subclases.
+
+        """
+        def proc(row, result):
+            return util.KeyedTuple([proc(row, None) for proc in procs], labels)
+        return proc
+
+
+class _BundleEntity(_QueryEntity):
+    def __init__(self, query, bundle):
+        query._entities.append(self)
+        self.bundle = self.entity_zero = bundle
+        self.type = type(bundle)
+        self._label_name = bundle.name
+        self._entities = []
+        for expr in bundle.exprs:
+            if isinstance(expr, Bundle):
+                _BundleEntity(self, expr)
+            else:
+                _ColumnEntity(self, expr, namespace=self)
+
+        self.entities = ()
+
+        self.filter_fn = lambda item: item
+
+    def setup_entity(self, ext_info, aliased_adapter):
+        for ent in self._entities:
+            ent.setup_entity(ext_info, aliased_adapter)
+
+    def setup_context(self, query, context):
+        for ent in self._entities:
+            ent.setup_context(query, context)
+
+    def row_processor(self, query, context, custom_rows):
+        procs, labels = zip(
+                *[ent.row_processor(query, context, custom_rows)
+                for ent in self._entities]
+            )
+
+        proc = self.bundle.create_row_processor(query, procs, labels)
+
+        return proc, self._label_name
 
 class _ColumnEntity(_QueryEntity):
     """Column/expression based entity."""
@@ -3125,7 +3235,7 @@ class _ColumnEntity(_QueryEntity):
                 "expected - got '%r'" % (column, )
             )
 
-        type_ = column.type
+        self.type = type_ = column.type
         if type_.hashable:
             self.filter_fn = lambda item: item
         else:
@@ -3176,10 +3286,6 @@ class _ColumnEntity(_QueryEntity):
             return list(self.actual_froms)[0]
         else:
             return None
-
-    @property
-    def type(self):
-        return self.column.type
 
     def adapt_to_selectable(self, query, sel):
         c = _ColumnEntity(query, sel.corresponding_column(self.column))

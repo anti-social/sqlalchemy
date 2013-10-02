@@ -13,6 +13,22 @@
     :version: 0.9.0
 
     .. change::
+        :tags: feature, orm
+        :tickets: 2824
+
+        A new construct :class:`.Bundle` is added, which allows for specification
+        of groups of column expressions to a :class:`.Query` construct.
+        The group of columns are returned as a single tuple by default.  The
+        behavior of :class:`.Bundle` can be overridden however to provide
+        any sort of result processing to the returned row.  One example included
+        is :attr:`.Composite.Comparator.bundle`, which applies a bundled form
+        of a "composite" mapped attribute.
+
+        .. seealso::
+
+            :ref:`change_2824`
+
+    .. change::
         :tags: bug, sql
         :tickets: 2812
 

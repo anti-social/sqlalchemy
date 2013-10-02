@@ -391,6 +391,88 @@ rendering::
 
 :ticket:`722`
 
+.. _change_2824:
+
+Column Bundles for ORM queries
+------------------------------
+
+The :class:`.Bundle` allows for querying of sets of columns, which are then
+grouped into one name under the tuple returned by the query.  The initial
+purposes of :class:`.Bundle` are 1. to allow "composite" ORM columns to be
+returned as a single value in a column-based result set, rather than expanding
+them out into individual columns and 2. to allow the creation of custom result-set
+constructs within the ORM, using ad-hoc columns and return types, without involving
+the more heavyweight mechanics of mapped classes.
+
+Example one - basic bundle
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The bundle allows columns to be grouped together::
+
+    from sqlalchemy.orm import Bundle
+
+    bn = Bundle('mybundle', MyClass.data1, MyClass.data2)
+    for row in session.query(bn).filter(bn.c.data1 == 'd1'):
+        print row.mybundle.data1, row.mybundle.data2
+
+Example two - custom bundle classes
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The bundle can be subclassed to provide custom behaviors::
+
+    from sqlalchemy.orm import Bundle
+
+    class DictBundle(Bundle):
+        def create_row_processor(self, query, procs, labels):
+            """Override create_row_processor to return values as dictionaries"""
+            def proc(row, result):
+                return dict(
+                            zip(labels, (proc(row, result) for proc in procs))
+                        )
+            return proc
+
+A result from the above bundle will return dictionary values::
+
+    bn = Bundle('mybundle', MyClass.data1, MyClass.data2)
+    for row in session.query(bn).filter(bn.c.data1 == 'd1'):
+        print row.mybundle['data1'], row.mybundle['data2']
+
+Example three - using bundles with composites
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Starting with the example from :ref:`mapper_composite`, we can query
+for the ``Point`` as a bundle as follows::
+
+    class Vertex(Base):
+        __tablename__ = 'vertice'
+
+        id = Column(Integer, primary_key=True)
+        x1 = Column(Integer)
+        y1 = Column(Integer)
+        x2 = Column(Integer)
+        y2 = Column(Integer)
+
+        start = composite(Point, x1, y1)
+        end = composite(Point, x2, y2)
+
+    start = Vertex.start.bundle
+    end = Vertex.end.bundle
+
+    for row in session.query(start, end).filter(start == Point(10, 5)).filter(end.c.y == 20):
+        print(row.start, row.end)
+
+The above accessor for :attr:`.Composite.Comparator.bundle` returns a
+:class:`.Bundle` object, which in a composite context accepts comparisons at
+both the composite level as well as at the column level.  Column-level
+results are returned as Point objects, not individual columns.
+
+It might be better that the "bundle" feature is actually the default
+for composites, though there are backwards compatibility and regression
+concerns at this point so for now it's still an optional feature.
+
+:ticket:`2824`
+
+
 Server Side Version Counting
 -----------------------------
 
