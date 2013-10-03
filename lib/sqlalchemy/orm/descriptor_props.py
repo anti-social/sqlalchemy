@@ -362,20 +362,6 @@ class CompositeProperty(DescriptorProperty):
             super(CompositeProperty.CompositeBundle, self).__init__(
                         property.key, *expr)
 
-        class Comparator(query.Bundle.Comparator):
-            def __init__(self, bundle):
-                super(CompositeProperty.CompositeBundle.Comparator, self).__init__(bundle)
-                self.comparator = self.bundle.property.comparator_factory(
-                                        self.bundle.property,
-                                        self.bundle.property.parent)
-
-            def operate(self, op, *other, **kwargs):
-                return op(self.comparator, *other, **kwargs)
-
-            def reverse_operate(self, op, other, **kwargs):
-                return op(other, self.comparator, **kwargs)
-
-
         def create_row_processor(self, query, procs, labels):
             def proc(row, result):
                 return self.property.composite_class(*[proc(row, result) for proc in procs])

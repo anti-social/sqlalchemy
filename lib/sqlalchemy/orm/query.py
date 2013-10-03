@@ -3094,7 +3094,7 @@ class _MapperEntity(_QueryEntity):
         return str(self.mapper)
 
 @inspection._self_inspects
-class Bundle(operators.ColumnOperators):
+class Bundle(object):
     """A grouping of SQL expressions that are returned by a :class:`.Query`
     under one namespace.
 
@@ -3129,18 +3129,6 @@ class Bundle(operators.ColumnOperators):
         self.c = self.columns = ColumnCollection()
         self.columns.update((getattr(col, "key", col._label), col)
                     for col in exprs)
-        self.comparator = self.__class__.Comparator(self)
-
-    class Comparator(interfaces.PropComparator):
-        def __init__(self, bundle):
-            self.bundle = bundle
-
-
-    def operate(self, op, *other, **kwargs):
-        return op(self.comparator, *other, **kwargs)
-
-    def reverse_operate(self, op, other, **kwargs):
-        return op(other, self.comparator, **kwargs)
 
     def _clone(self):
         cloned = self.__class__.__new__(self.__class__)

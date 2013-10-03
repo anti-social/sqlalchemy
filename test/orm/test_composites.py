@@ -237,6 +237,20 @@ class PointTest(fixtures.MappedTest):
             [(Point(3, 4), Point(5, 6))]
         )
 
+    def test_query_cols_labeled(self):
+        Edge = self.classes.Edge
+        Point = self.classes.Point
+
+        sess = self._fixture()
+
+        start, end = Edge.start, Edge.end
+
+        row = sess.query(start.label('s1'), end).filter(start == Point(3, 4)).first()
+        eq_(row.s1.x, 3)
+        eq_(row.s1.y, 4)
+        eq_(row.end.x, 5)
+        eq_(row.end.y, 6)
+
     def test_delete(self):
         Point = self.classes.Point
         Graph, Edge = self.classes.Graph, self.classes.Edge
