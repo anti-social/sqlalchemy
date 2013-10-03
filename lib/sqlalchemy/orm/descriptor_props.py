@@ -392,11 +392,13 @@ class CompositeProperty(DescriptorProperty):
 
         @property
         def clauses(self):
-            return expression.ClauseList(group=False, *self._comparable_elements)
+            return self.__clause_element__()
 
         def __clause_element__(self):
-            expr = self.clauses
-            return CompositeProperty.CompositeBundle(self.prop, expr)
+            return expression.ClauseList(group=False, *self._comparable_elements)
+
+        def _query_clause_element(self):
+            return CompositeProperty.CompositeBundle(self.prop, self.__clause_element__())
 
         @util.memoized_property
         def _comparable_elements(self):

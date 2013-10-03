@@ -3266,7 +3266,7 @@ class _ColumnEntity(_QueryEntity):
                                     interfaces.PropComparator
                                 )):
             self._label_name = column.key
-            column = column.__clause_element__()
+            column = column._query_clause_element()
         else:
             self._label_name = getattr(column, 'key', None)
 

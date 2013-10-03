@@ -2,7 +2,7 @@ from sqlalchemy.testing import fixtures, eq_
 from sqlalchemy.testing.schema import Table, Column
 from sqlalchemy.orm import Bundle, Session
 from sqlalchemy.testing import AssertsCompiledSQL
-from sqlalchemy import Integer, select, ForeignKey, String
+from sqlalchemy import Integer, select, ForeignKey, String, func
 from sqlalchemy.orm import mapper, relationship, aliased
 
 class BundleTest(fixtures.MappedTest, AssertsCompiledSQL):
@@ -222,5 +222,24 @@ class BundleTest(fixtures.MappedTest, AssertsCompiledSQL):
             ((5, 'd4d1', 'd4d2'),), ((6, 'd5d1', 'd5d2'),),
             ((7, 'd6d1', 'd6d2'),), ((8, 'd7d1', 'd7d2'),),
             ((9, 'd8d1', 'd8d2'),), ((10, 'd9d1', 'd9d2'),)]
+        )
+
+    def test_clause_expansion(self):
+        Data = self.classes.Data
+
+        b1 = Bundle('b1', Data.id, Data.d1, Data.d2)
+
+        sess = Session()
+        self.assert_compile(
+            sess.query(Data).order_by(b1),
+            "SELECT data.id AS data_id, data.d1 AS data_d1, "
+            "data.d2 AS data_d2, data.d3 AS data_d3 FROM data "
+            "ORDER BY data.id, data.d1, data.d2"
+        )
+
+        self.assert_compile(
+            sess.query(func.row_number().over(order_by=b1)),
+            "SELECT row_number() OVER (ORDER BY data.id, data.d1, data.d2) "
+            "AS anon_1 FROM data"
         )
 

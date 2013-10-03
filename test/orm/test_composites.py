@@ -894,3 +894,15 @@ class ComparatorTest(fixtures.MappedTest, testing.AssertsCompiledSQL):
             "edge_1.x2, edge_1.y2"
         )
 
+    def test_clause_expansion(self):
+        self._fixture(False)
+        Edge = self.classes.Edge
+        from sqlalchemy.orm import configure_mappers
+        configure_mappers()
+
+        self.assert_compile(
+            select([Edge]).order_by(Edge.start),
+            "SELECT edge.id, edge.x1, edge.y1, edge.x2, edge.y2 FROM edge "
+            "ORDER BY edge.x1, edge.y1"
+        )
+
