@@ -3109,7 +3109,7 @@ class Bundle(object):
 
     .. seealso::
 
-        :attr:`.CompositeProperty.Comparator.bundle`
+        :ref:`bundles`
 
     """
 
@@ -3129,6 +3129,33 @@ class Bundle(object):
         self.c = self.columns = ColumnCollection()
         self.columns.update((getattr(col, "key", col._label), col)
                     for col in exprs)
+
+    columns = None
+    """A namespace of SQL expressions referred to by this :class:`.Bundle`.
+
+        e.g.::
+
+            bn = Bundle("mybundle", MyClass.x, MyClass.y)
+
+            q = sess.query(bn).filter(bn.c.x == 5)
+
+        Nesting of bundles is also supported::
+
+            b1 = Bundle("b1",
+                    Bundle('b2', MyClass.a, MyClass.b),
+                    Bundle('b3', MyClass.x, MyClass.y)
+                )
+
+            q = sess.query(b1).filter(b1.c.b2.c.a == 5).filter(b1.c.b3.c.y == 9)
+
+    .. seealso::
+
+        :attr:`.Bundle.c`
+
+    """
+
+    c = None
+    """An alias for :attr:`.Bundle.columns`."""
 
     def _clone(self):
         cloned = self.__class__.__new__(self.__class__)
@@ -3152,7 +3179,11 @@ class Bundle(object):
     def create_row_processor(self, query, procs, labels):
         """Produce the "row processing" function for this :class:`.Bundle`.
 
-        May be overridden by subclases.
+        May be overridden by subclasses.
+
+        .. seealso::
+
+            :ref:`bundles` - includes an example of subclassing.
 
         """
         def proc(row, result):

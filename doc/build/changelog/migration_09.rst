@@ -52,6 +52,35 @@ in both Python 2 and Python 3 environments.
 Behavioral Changes
 ==================
 
+.. _migration_2824:
+
+Composite attributes are now returned as their object form when queried on a per-attribute basis
+------------------------------------------------------------------------------------------------
+
+Using a :class:`.Query` in conjunction with a composite attribute now returns the object
+type maintained by that composite, rather than being broken out into individual
+columns.   Using the mapping setup at :ref:`mapper_composite`::
+
+    >>> session.query(Vertex.start, Vertex.end).\
+    ...     filter(Vertex.start == Point(3, 4)).all()
+    [(Point(x=3, y=4), Point(x=5, y=6))]
+
+This change is backwards-incompatible with code that expects the indivdual attribute
+to be expanded into individual columns.  To get that behavior, use the ``.clauses``
+accessor::
+
+
+    >>> session.query(Vertex.start.clauses, Vertex.end.clauses).\
+    ...     filter(Vertex.start == Point(3, 4)).all()
+    [(3, 4, 5, 6)]
+
+.. seealso::
+
+    :ref:`change_2824`
+
+:ticket:`2824`
+
+
 .. _migration_2736:
 
 :meth:`.Query.select_from` no longer applies the clause to corresponding entities
@@ -404,71 +433,11 @@ them out into individual columns and 2. to allow the creation of custom result-s
 constructs within the ORM, using ad-hoc columns and return types, without involving
 the more heavyweight mechanics of mapped classes.
 
-Example one - basic bundle
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. seealso::
 
-The bundle allows columns to be grouped together::
+    :ref:`migration_2824`
 
-    from sqlalchemy.orm import Bundle
-
-    bn = Bundle('mybundle', MyClass.data1, MyClass.data2)
-    for row in session.query(bn).filter(bn.c.data1 == 'd1'):
-        print row.mybundle.data1, row.mybundle.data2
-
-Example two - custom bundle classes
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The bundle can be subclassed to provide custom behaviors::
-
-    from sqlalchemy.orm import Bundle
-
-    class DictBundle(Bundle):
-        def create_row_processor(self, query, procs, labels):
-            """Override create_row_processor to return values as dictionaries"""
-            def proc(row, result):
-                return dict(
-                            zip(labels, (proc(row, result) for proc in procs))
-                        )
-            return proc
-
-A result from the above bundle will return dictionary values::
-
-    bn = Bundle('mybundle', MyClass.data1, MyClass.data2)
-    for row in session.query(bn).filter(bn.c.data1 == 'd1'):
-        print row.mybundle['data1'], row.mybundle['data2']
-
-Example three - using bundles with composites
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Starting with the example from :ref:`mapper_composite`, we can query
-for the ``Point`` as a bundle as follows::
-
-    class Vertex(Base):
-        __tablename__ = 'vertice'
-
-        id = Column(Integer, primary_key=True)
-        x1 = Column(Integer)
-        y1 = Column(Integer)
-        x2 = Column(Integer)
-        y2 = Column(Integer)
-
-        start = composite(Point, x1, y1)
-        end = composite(Point, x2, y2)
-
-    start = Vertex.start.bundle
-    end = Vertex.end.bundle
-
-    for row in session.query(start, end).filter(start == Point(10, 5)).filter(end.c.y == 20):
-        print(row.start, row.end)
-
-The above accessor for :attr:`.Composite.Comparator.bundle` returns a
-:class:`.Bundle` object, which in a composite context accepts comparisons at
-both the composite level as well as at the column level.  Column-level
-results are returned as Point objects, not individual columns.
-
-It might be better that the "bundle" feature is actually the default
-for composites, though there are backwards compatibility and regression
-concerns at this point so for now it's still an optional feature.
+    :ref:`bundles`
 
 :ticket:`2824`
 

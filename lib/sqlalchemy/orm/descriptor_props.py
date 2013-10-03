@@ -84,9 +84,9 @@ class CompositeProperty(DescriptorProperty):
     :class:`.CompositeProperty` is constructed using the :func:`.composite`
     function.
 
-    See also:
+    .. seealso::
 
-    :ref:`mapper_composite`
+        :ref:`mapper_composite`
 
     """
     def __init__(self, class_, *attrs, **kwargs):

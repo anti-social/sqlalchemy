@@ -2,8 +2,8 @@ from sqlalchemy.testing import fixtures, eq_
 from sqlalchemy.testing.schema import Table, Column
 from sqlalchemy.orm import Bundle, Session
 from sqlalchemy.testing import AssertsCompiledSQL
-from sqlalchemy import Integer, select, ForeignKey
-from sqlalchemy.orm import mapper, relationship
+from sqlalchemy import Integer, select, ForeignKey, String
+from sqlalchemy.orm import mapper, relationship, aliased
 
 class BundleTest(fixtures.MappedTest, AssertsCompiledSQL):
     __dialect__ = 'default'
@@ -17,15 +17,15 @@ class BundleTest(fixtures.MappedTest, AssertsCompiledSQL):
         Table('data', metadata,
                 Column('id', Integer, primary_key=True,
                             test_needs_autoincrement=True),
-                Column('d1', Integer),
-                Column('d2', Integer),
-                Column('d3', Integer)
+                Column('d1', String(10)),
+                Column('d2', String(10)),
+                Column('d3', String(10))
             )
 
         Table('other', metadata,
                 Column('id', Integer, primary_key=True, test_needs_autoincrement=True),
                 Column('data_id', ForeignKey('data.id')),
-                Column('o1', Integer)
+                Column('o1', String(10))
             )
 
     @classmethod
@@ -46,7 +46,8 @@ class BundleTest(fixtures.MappedTest, AssertsCompiledSQL):
     def insert_data(cls):
         sess = Session()
         sess.add_all([
-            cls.classes.Data(d1='d%dd1' % i, d2='d%dd2' % i, d3='d%dd3' % i)
+            cls.classes.Data(d1='d%dd1' % i, d2='d%dd2' % i, d3='d%dd3' % i,
+                    others=[cls.classes.Other(o1="d%do%d" % (i, j)) for j in range(5)])
             for i in range(10)
         ])
         sess.commit()
@@ -91,6 +92,29 @@ class BundleTest(fixtures.MappedTest, AssertsCompiledSQL):
             [({'d2': 'd3d2', 'd1': 'd3d1'},),
                 ({'d2': 'd4d2', 'd1': 'd4d1'},),
                 ({'d2': 'd5d2', 'd1': 'd5d1'},)]
+        )
+
+    def test_multi_bundle(self):
+        Data = self.classes.Data
+        Other = self.classes.Other
+
+        d1 = aliased(Data)
+
+        b1 = Bundle('b1', d1.d1, d1.d2)
+        b2 = Bundle('b2', Data.d1, Other.o1)
+
+        sess = Session()
+
+        q = sess.query(b1, b2).join(Data.others).join(d1, d1.id == Data.id).\
+            filter(b1.c.d1 == 'd3d1')
+        eq_(
+            q.all(),
+            [
+                (('d3d1', 'd3d2'), ('d3d1', 'd3o0')),
+                (('d3d1', 'd3d2'), ('d3d1', 'd3o1')),
+                (('d3d1', 'd3d2'), ('d3d1', 'd3o2')),
+                (('d3d1', 'd3d2'), ('d3d1', 'd3o3')),
+                (('d3d1', 'd3d2'), ('d3d1', 'd3o4'))]
         )
 
     def test_bundle_nesting(self):
@@ -177,6 +201,8 @@ class BundleTest(fixtures.MappedTest, AssertsCompiledSQL):
         unioned = first.union(second)
         subquery = session.query(Data.id).subquery()
         joined = unioned.outerjoin(subquery, subquery.c.id == Data.id)
+        joined = joined.order_by(Data.id, Data.d1, Data.d2)
+
         self.assert_compile(
             joined,
             "SELECT anon_1.data_id AS anon_1_data_id, anon_1.data_d1 AS anon_1_data_d1, "
@@ -185,7 +211,8 @@ class BundleTest(fixtures.MappedTest, AssertsCompiledSQL):
             "data UNION SELECT data.id AS data_id, data.d1 AS data_d1, "
             "data.d2 AS data_d2 FROM data) AS anon_1 "
             "LEFT OUTER JOIN (SELECT data.id AS id FROM data) AS anon_2 "
-            "ON anon_2.id = anon_1.data_id")
+            "ON anon_2.id = anon_1.data_id "
+            "ORDER BY anon_1.data_id, anon_1.data_d1, anon_1.data_d2")
 
         # tuple nesting still occurs
         eq_(
