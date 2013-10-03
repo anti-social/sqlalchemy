@@ -3161,21 +3161,46 @@ class Bundle(object):
 
 
 class _BundleEntity(_QueryEntity):
-    def __init__(self, query, bundle):
+    def __init__(self, query, bundle, setup_entities=True):
         query._entities.append(self)
         self.bundle = self.entity_zero = bundle
         self.type = type(bundle)
         self._label_name = bundle.name
         self._entities = []
-        for expr in bundle.exprs:
-            if isinstance(expr, Bundle):
-                _BundleEntity(self, expr)
-            else:
-                _ColumnEntity(self, expr, namespace=self)
+
+        if setup_entities:
+            for expr in bundle.exprs:
+                if isinstance(expr, Bundle):
+                    _BundleEntity(self, expr)
+                else:
+                    _ColumnEntity(self, expr, namespace=self)
 
         self.entities = ()
 
         self.filter_fn = lambda item: item
+
+    def corresponds_to(self, entity):
+        # TODO: this seems to have no effect for
+        # _ColumnEntity either
+        return False
+
+    @property
+    def entity_zero_or_selectable(self):
+        for ent in self._entities:
+            ezero = ent.entity_zero_or_selectable
+            if ezero is not None:
+                return ezero
+        else:
+            return None
+
+    def adapt_to_selectable(self, query, sel):
+        c = _BundleEntity(query, self.bundle, setup_entities=False)
+        #c._label_name = self._label_name
+        #c.entity_zero = self.entity_zero
+        #c.entities = self.entities
+
+        for ent in self._entities:
+            ent.adapt_to_selectable(c, sel)
 
     def setup_entity(self, ext_info, aliased_adapter):
         for ent in self._entities:
@@ -3297,6 +3322,8 @@ class _ColumnEntity(_QueryEntity):
         self.froms.add(ext_info.selectable)
 
     def corresponds_to(self, entity):
+        # TODO: just returning False here,
+        # no tests fail
         if self.entity_zero is None:
             return False
         elif _is_aliased_class(entity):
